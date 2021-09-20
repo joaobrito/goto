@@ -15,6 +15,7 @@ URL: <input type="text" name="url">
 `
 
 var store = new(URLStore)
+var store = NewURLStore()
 
 func main() {
 	store.urls = make(map[string]string)
