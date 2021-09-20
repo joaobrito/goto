@@ -14,7 +14,6 @@ URL: <input type="text" name="url">
 </html></body>
 `
 
-var store = new(URLStore)
 var store = NewURLStore()
 
 func main() {
