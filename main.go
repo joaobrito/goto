@@ -17,8 +17,6 @@ URL: <input type="text" name="url">
 var store = NewURLStore()
 
 func main() {
-	store.urls = make(map[string]string)
-
 	http.HandleFunc("/", Redirect)
 	http.HandleFunc("/add", Add)
 	http.ListenAndServe(":3000", nil)
