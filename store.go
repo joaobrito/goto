@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/gob"
+	"fmt"
 	"io"
 	"log"
 	"os"
@@ -16,6 +17,11 @@ type URLStore struct {
 	urls map[string]string
 	mu   sync.RWMutex
 	file *os.File
+}
+
+func (s *URLStore) close() {
+	err := s.file.Close()
+	fmt.Printf("file closed err = %s", err)
 }
 
 func NewURLStore(filename string) *URLStore {
@@ -59,7 +65,22 @@ func (s *URLStore) Count() int {
 	return len(s.urls)
 }
 
+func (s *URLStore) contains(url string) *string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	for k, v := range s.urls {
+		if v == url {
+			return &k
+		}
+	}
+	return nil
+}
+
 func (s *URLStore) Put(url string) string {
+
+	if key := s.contains(url); key != nil {
+		return *key
+	}
 
 	for {
 		key := genKey(s.Count()) // generate the short URL
@@ -83,9 +104,8 @@ func (s *URLStore) load() error {
 	}
 
 	d := gob.NewDecoder(s.file)
-
 	var err error
-	for err == nil {
+	for err != io.EOF {
 		var r record
 		if err = d.Decode(&r); err == nil {
 			s.Set(r.Key, r.URL)
