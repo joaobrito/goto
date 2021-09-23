@@ -14,7 +14,7 @@ URL: <input type="text" name="url">
 </html></body>
 `
 
-var store = NewURLStore()
+var store = NewURLStore("store.gob", 1000)
 
 func main() {
 	http.HandleFunc("/", Redirect)
@@ -39,6 +39,7 @@ func Add(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprint(w, addForm)
 		return
 	}
+
 	key := store.Put(url)
 
 	fmt.Fprintf(w, "%s", key)
