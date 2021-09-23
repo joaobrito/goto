@@ -14,10 +14,9 @@ URL: <input type="text" name="url">
 </html></body>
 `
 
-var store = NewURLStore("store.gob")
+var store = NewURLStore("store.gob", 1000)
 
 func main() {
-	defer store.close()
 	http.HandleFunc("/", Redirect)
 	http.HandleFunc("/add", Add)
 	http.ListenAndServe(":3000", nil)

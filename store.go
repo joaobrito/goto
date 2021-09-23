@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/gob"
-	"fmt"
 	"io"
 	"log"
 	"os"
@@ -14,31 +13,22 @@ type record struct {
 }
 
 type URLStore struct {
-	urls map[string]string
-	mu   sync.RWMutex
-	file *os.File
+	urls   map[string]string
+	mu     sync.RWMutex
+	saveCh chan record
 }
 
-func (s *URLStore) close() {
-	err := s.file.Close()
-	fmt.Printf("file closed err = %s", err)
-}
-
-func NewURLStore(filename string) *URLStore {
+func NewURLStore(filename string, saveQueueLength int) *URLStore {
 	store := &URLStore{
-		urls: make(map[string]string),
+		urls:   make(map[string]string),
+		saveCh: make(chan record, saveQueueLength),
 	}
 
-	f, err := os.OpenFile(filename, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0644)
-	if err != nil {
-		log.Fatal("URLStore: ", err)
-	}
-
-	store.file = f
-
-	if err := store.load(); err != nil {
+	if err := store.load(filename); err != nil {
 		log.Println("Error loading data in URLStore: ", err)
 	}
+
+	go store.saveLoop(filename)
 
 	return store
 }
@@ -85,26 +75,41 @@ func (s *URLStore) Put(url string) string {
 	for {
 		key := genKey(s.Count()) // generate the short URL
 		if ok := s.Set(key, url); ok {
-			if err := store.save(key, url); err != nil {
-				log.Println("Error saving to URLStore: ", err)
-			}
+			s.saveCh <- record{key, url}
 			return key
 		}
 	}
 }
 
-func (s *URLStore) save(key, url string) error {
-	e := gob.NewEncoder(s.file)
-	return e.Encode(record{key, url})
-}
-
-func (s *URLStore) load() error {
-	if _, err := s.file.Seek(0, 0); err != nil {
+func (s *URLStore) saveLoop(filename string) error {
+	file, err := os.OpenFile(filename, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
+	defer file.Close()
+	if err != nil {
+		log.Fatal("URLStore saveloop: ", err)
 		return err
 	}
 
-	d := gob.NewDecoder(s.file)
-	var err error
+	for {
+		r := <-s.saveCh // taking a record from the channel and encoding it
+		e := gob.NewEncoder(file)
+		if err := e.Encode(r); err != nil {
+			log.Println("URLStore:", err)
+		}
+	}
+
+}
+
+func (s *URLStore) load(filename string) error {
+	file, err := os.OpenFile(filename, os.O_RDONLY|os.O_CREATE, 0644)
+	if err != nil {
+		log.Fatal("URLStore: ", err)
+	}
+
+	if _, err := file.Seek(0, 0); err != nil {
+		return err
+	}
+
+	d := gob.NewDecoder(file)
 	for err != io.EOF {
 		var r record
 		if err = d.Decode(&r); err == nil {
